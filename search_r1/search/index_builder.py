@@ -1,5 +1,8 @@
 import os
-import faiss
+try:
+    import faiss
+except ImportError:
+    faiss = None
 import json
 import warnings
 import numpy as np
@@ -244,6 +247,11 @@ class Index_Builder:
 
     @torch.no_grad()
     def build_dense_index(self):
+        if faiss is None:
+            raise RuntimeError(
+                'Dense index building requires FAISS. Install faiss-cpu, or '
+                'build a BM25 index instead.'
+            )
         """Obtain the representation of documents based on the embedding model(BERT-based) and 
         construct a faiss index.
         """

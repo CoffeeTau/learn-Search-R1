@@ -2,7 +2,8 @@ accelerate
 codetiming
 datasets
 dill
-flash-attn
+# Optional performance dependency. Training falls back to PyTorch SDPA when absent.
+# flash-attn
 hydra-core
 numpy
 packaging

@@ -1,10 +1,16 @@
 import json
+import math
 import os
+import re
 import warnings
+from collections import Counter, defaultdict
 from typing import List, Dict, Optional
 import argparse
 
-import faiss
+try:
+    import faiss
+except ImportError:
+    faiss = None
 import torch
 import numpy as np
 from transformers import AutoConfig, AutoTokenizer, AutoModel
@@ -192,6 +198,85 @@ class BM25Retriever(BaseRetriever):
         else:
             return results
 
+
+class SimpleBM25Retriever(BaseRetriever):
+    """Small, dependency-free BM25 backend for demos and connectivity tests.
+
+    Unlike Pyserini/Lucene this implementation keeps its postings in Python
+    memory, so it must not be used for a multi-million-document production
+    corpus.
+    """
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.corpus = read_jsonl(self.corpus_path)
+        if len(self.corpus) > 100000:
+            warnings.warn(
+                'simple_bm25 is intended for small corpora. Use Pyserini for '
+                'large-scale training corpora.',
+                UserWarning,
+            )
+
+        self.doc_lengths = []
+        self.postings = defaultdict(list)
+        for doc_idx, document in enumerate(self.corpus):
+            text = document.get('contents') or ' '.join(
+                str(document.get(key, '')) for key in ('title', 'text')
+            )
+            term_counts = Counter(self._tokenize(text))
+            self.doc_lengths.append(sum(term_counts.values()))
+            for term, frequency in term_counts.items():
+                self.postings[term].append((doc_idx, frequency))
+
+        self.avg_doc_length = (
+            sum(self.doc_lengths) / len(self.doc_lengths) if self.doc_lengths else 0.0
+        )
+
+    @staticmethod
+    def _tokenize(text):
+        return re.findall(r"[a-z0-9]+", text.lower())
+
+    def _search(self, query: str, num: int = None, return_score: bool = False):
+        if num is None:
+            num = self.topk
+        if not self.corpus or self.avg_doc_length == 0:
+            return ([], []) if return_score else []
+
+        k1, b = 1.2, 0.75
+        scores = defaultdict(float)
+        doc_count = len(self.corpus)
+        for term in set(self._tokenize(query)):
+            postings = self.postings.get(term, ())
+            doc_frequency = len(postings)
+            if not doc_frequency:
+                continue
+            inverse_doc_frequency = math.log(
+                1.0 + (doc_count - doc_frequency + 0.5) / (doc_frequency + 0.5)
+            )
+            for doc_idx, term_frequency in postings:
+                length_norm = 1.0 - b + b * self.doc_lengths[doc_idx] / self.avg_doc_length
+                scores[doc_idx] += inverse_doc_frequency * (
+                    term_frequency * (k1 + 1.0)
+                    / (term_frequency + k1 * length_norm)
+                )
+
+        ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:num]
+        documents = [self.corpus[doc_idx] for doc_idx, _ in ranked]
+        result_scores = [score for _, score in ranked]
+        if return_score:
+            return documents, result_scores
+        return documents
+
+    def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
+        results, scores = [], []
+        for query in query_list:
+            documents, query_scores = self._search(query, num, True)
+            results.append(documents)
+            scores.append(query_scores)
+        if return_score:
+            return results, scores
+        return results
+
     def _batch_search(self, query_list: List[str], num: int = None, return_score: bool = False):
         results = []
         scores = []
@@ -207,6 +292,11 @@ class BM25Retriever(BaseRetriever):
 class DenseRetriever(BaseRetriever):
     def __init__(self, config):
         super().__init__(config)
+        if faiss is None:
+            raise RuntimeError(
+                'Dense retrieval requires FAISS. Install faiss-cpu, or use '
+                '--retriever_name bm25/simple_bm25.'
+            )
         self.index = faiss.read_index(self.index_path)
         if config.faiss_gpu:
             co = faiss.GpuMultipleClonerOptions()
@@ -273,6 +363,8 @@ class DenseRetriever(BaseRetriever):
 def get_retriever(config):
     if config.retrieval_method == "bm25":
         return BM25Retriever(config)
+    elif config.retrieval_method == "simple_bm25":
+        return SimpleBM25Retriever(config)
     else:
         return DenseRetriever(config)
 

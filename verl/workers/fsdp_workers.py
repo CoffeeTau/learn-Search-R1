@@ -161,10 +161,14 @@ class ActorRolloutRefWorker(Worker):
 
         with init_context(), warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            from transformers.utils import is_flash_attn_2_available
+            attention_implementation = 'flash_attention_2' if is_flash_attn_2_available() else 'sdpa'
+            if self.rank == 0:
+                print(f'Using attention implementation: {attention_implementation}')
             actor_module = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=local_path,
                                                                 torch_dtype=torch_dtype,
                                                                 config=actor_model_config,
-                                                                attn_implementation='flash_attention_2',
+                                                                attn_implementation=attention_implementation,
                                                                 trust_remote_code=trust_remote_code)
             # some parameters may not in torch_dtype. TODO(zhangchi.usc1992) remove this after we switch to fsdp2
             actor_module.to(torch_dtype)

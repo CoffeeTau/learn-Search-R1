@@ -35,3 +35,17 @@ data/nq_search/          # 项目转换后的训练 Parquet，即 DATA_DIR
 curl http://127.0.0.1:8000/retrieve \
   -H 'Content-Type: application/json' \
   -d '{"queries":["Pavia Cathedral dome"],"topk":3,"return_scores":true}'
+
+python3 - <<'PY'
+import torch
+
+print("GPU count:", torch.cuda.device_count())
+
+for i in range(torch.cuda.device_count()):
+    try:
+        x = torch.ones(1, device=f"cuda:{i}")
+        torch.cuda.synchronize(i)
+        print(f"cuda:{i} OK:", torch.cuda.get_device_name(i))
+    except Exception as e:
+        print(f"cuda:{i} FAILED:", repr(e))
+PY

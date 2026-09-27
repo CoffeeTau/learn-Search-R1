@@ -21,8 +21,14 @@ export EXPERIMENT_NAME=nq-search-r1-ppo-llama3.2-3b-em
 # export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
 # export EXPERIMENT_NAME=nq-search-r1-ppo-qwen2.5-7b-it-em
 
-# set -x
-export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
+# vLLM 0.7+ uses the native external-launcher path.  The legacy customized
+# engine keeps XFormers for the Qwen2 workaround.
+if python3 -c "from importlib.metadata import version; from packaging.version import Version; raise SystemExit(0 if Version(version('vllm')) >= Version('0.7.0') else 1)"; then
+    export VLLM_USE_V1=0
+    unset VLLM_ATTENTION_BACKEND
+else
+    export VLLM_ATTENTION_BACKEND=XFORMERS
+fi
 
 # max_prompt_length = (config['training']['max_start_length'] + config['training']['max_response_length'] * (config['training']['max_turns'] - 1) + config['training']['max_obs_length'] * config['training']['max_turns'])
 

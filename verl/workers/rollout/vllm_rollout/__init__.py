@@ -12,4 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .vllm_rollout import vLLMRollout
+from packaging.version import Version
+
+from verl.third_party.vllm import vllm_version
+
+if Version(vllm_version) >= Version('0.7.0'):
+    from .vllm_rollout_spmd import vLLMRollout
+else:
+    from .vllm_rollout import vLLMRollout

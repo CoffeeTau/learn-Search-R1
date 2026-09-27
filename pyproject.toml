@@ -36,11 +36,12 @@ dependencies = [
     "dill",
     "hydra-core",
     "numpy",
+    "packaging",
     "pybind11",
     "ray",
-    "tensordict",
-    "transformers<4.48",
-    "vllm<=0.6.3",
+    "tensordict<=0.6.2",
+    "transformers",
+    "vllm",
 ]
 
 # Optional dependencies (extras_require in setup.py)

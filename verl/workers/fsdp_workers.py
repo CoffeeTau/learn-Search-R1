@@ -263,12 +263,21 @@ class ActorRolloutRefWorker(Worker):
             # TODO: a sharding manager that do nothing?
         elif self.config.rollout.name == 'vllm':
             from verl.workers.rollout.vllm_rollout import vLLMRollout
+            from verl.third_party.vllm import vllm_version
+            from packaging.version import Version
             from verl.workers.sharding_manager import FSDPVLLMShardingManager
             log_gpu_memory_usage('Before building vllm rollout', logger=None)
-            rollout = vLLMRollout(actor_module=self.actor_module_fsdp,
-                                  config=self.config.rollout,
-                                  tokenizer=self.tokenizer,
-                                  model_hf_config=self.actor_model_config)
+            if Version(vllm_version) >= Version('0.7.0'):
+                local_path = copy_local_path_from_hdfs(self.config.model.path)
+                rollout = vLLMRollout(model_path=local_path,
+                                      config=self.config.rollout,
+                                      tokenizer=self.tokenizer,
+                                      model_hf_config=self.actor_model_config)
+            else:
+                rollout = vLLMRollout(actor_module=self.actor_module_fsdp,
+                                      config=self.config.rollout,
+                                      tokenizer=self.tokenizer,
+                                      model_hf_config=self.actor_model_config)
             log_gpu_memory_usage('After building vllm rollout', logger=None)
             if torch.distributed.get_world_size() == 1:
                 self.config.rollout.load_format = 'dummy_hf'

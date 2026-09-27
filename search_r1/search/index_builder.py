@@ -9,6 +9,7 @@ import numpy as np
 from typing import cast, List, Dict
 import shutil
 import subprocess
+import sys
 import argparse
 import torch
 from tqdm import tqdm
@@ -140,7 +141,7 @@ class Index_Builder:
         os.makedirs(self.save_dir, exist_ok=True)
         temp_dir = self.save_dir + "/temp"
         temp_file_path = temp_dir + "/temp.jsonl"
-        os.makedirs(temp_dir)
+        os.makedirs(temp_dir, exist_ok=True)
 
         # if self.have_contents:
         #     shutil.copyfile(self.corpus_path, temp_file_path)
@@ -157,9 +158,13 @@ class Index_Builder:
                          "--generator", "DefaultLuceneDocumentGenerator",
                          "--threads", "1"]
        
-        subprocess.run(["python", "-m", "pyserini.index.lucene"] + pyserini_args)
-
-        shutil.rmtree(temp_dir)
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pyserini.index.lucene"] + pyserini_args,
+                check=True,
+            )
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
         
         print("Finish!")
 

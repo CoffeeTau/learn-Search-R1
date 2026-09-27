@@ -30,3 +30,8 @@ bash train_grpo.sh
 
 data/FlashRAG_Dataset/   # ModelScope 下载的原始 JSONL
 data/nq_search/          # 项目转换后的训练 Parquet，即 DATA_DIR
+
+
+curl http://127.0.0.1:8000/retrieve \
+  -H 'Content-Type: application/json' \
+  -d '{"queries":["Pavia Cathedral dome"],"topk":3,"return_scores":true}'

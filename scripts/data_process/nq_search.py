@@ -42,6 +42,12 @@ If you find no further external knowledge needed, you can directly provide the a
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--local_dir', default='./data/nq_search')
+    parser.add_argument(
+        '--source_dir',
+        default=None,
+        help='Optional local FlashRAG dataset directory, for example '
+             './data/FlashRAG_Dataset downloaded from ModelScope.',
+    )
     parser.add_argument('--hdfs_dir', default=None)
     parser.add_argument('--template_type', type=str, default='base')
 
@@ -49,7 +55,20 @@ if __name__ == '__main__':
 
     data_source = 'nq'
 
-    dataset = datasets.load_dataset('RUC-NLPIR/FlashRAG_datasets', 'nq')
+    if args.source_dir is None:
+        dataset = datasets.load_dataset('RUC-NLPIR/FlashRAG_datasets', 'nq')
+    else:
+        source_dir = os.path.abspath(os.path.expanduser(args.source_dir))
+        data_files = {
+            'train': os.path.join(source_dir, 'nq', 'train.jsonl'),
+            'test': os.path.join(source_dir, 'nq', 'test.jsonl'),
+        }
+        missing_files = [path for path in data_files.values() if not os.path.isfile(path)]
+        if missing_files:
+            raise FileNotFoundError(
+                'Missing local NQ source file(s): ' + ', '.join(missing_files)
+            )
+        dataset = datasets.load_dataset('json', data_files=data_files)
 
     train_dataset = dataset['train']
     test_dataset = dataset['test']
@@ -92,6 +111,7 @@ if __name__ == '__main__':
     local_dir = args.local_dir
     hdfs_dir = args.hdfs_dir
 
+    os.makedirs(local_dir, exist_ok=True)
     train_dataset.to_parquet(os.path.join(local_dir, 'train.parquet'))
     test_dataset.to_parquet(os.path.join(local_dir, 'test.parquet'))
 
